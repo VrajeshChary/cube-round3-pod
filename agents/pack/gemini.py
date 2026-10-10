@@ -42,6 +42,8 @@ if api_key:
 
 def is_configured():
     """True when a Gemini API key is present."""
+    if os.getenv("GEMINI_OFFLINE") == "1":
+        return False
     return client is not None
 
 
@@ -289,4 +291,4 @@ Return ONLY valid JSON in this format:
             pass
     result["cost_usd"] = cost_usd
 
-    return result
+    return result

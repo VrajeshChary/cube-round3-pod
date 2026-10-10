@@ -39,6 +39,8 @@ DAMAGE_CRITICAL = {"crushing", "water", "tears", "broken", "punctur"}
 
 def _get_api_key() -> str | None:
     """Retrieve GEMINI_API_KEY from environment or local env files."""
+    if os.environ.get("GEMINI_OFFLINE") == "1":
+        return None
     key = os.environ.get("GEMINI_API_KEY")
     if key:
         return key.strip()

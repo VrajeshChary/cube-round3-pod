@@ -50,7 +50,7 @@ export async function resilientFetch(urlPath: string, init?: RequestInit): Promi
   try {
     return await fetch(url, init)
   } catch (err: any) {
-    if (API_BASE_URL === '/api') {
+    if (import.meta.env.DEV && API_BASE_URL === '/api') {
       try {
         const directUrl = `http://127.0.0.1:8100${urlPath.startsWith('/') ? urlPath : `/${urlPath}`}`
         return await fetch(directUrl, init)

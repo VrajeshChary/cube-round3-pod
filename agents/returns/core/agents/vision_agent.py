@@ -153,6 +153,16 @@ class VisionConfig:
     def __init__(self):
         self.env_loaded = False
         self.env_path = "not_found"
+
+        if os.environ.get("GEMINI_OFFLINE") == "1":
+            self.provider = "offline"
+            self.api_key = None
+            self.active_model = "none"
+            self.openrouter_key = None
+            self.gemini_key = None
+            self.api_key_preview = None
+            return
+
         self._load_env()
 
         self.openrouter_key = os.environ.get("OPENROUTER_API_KEY")

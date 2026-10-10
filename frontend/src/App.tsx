@@ -8,9 +8,40 @@ import { AgentDetail } from '@/pages/AgentDetail'
 import type { AgentStage } from '@/data/agentsData'
 import type { WorkflowState } from '@/types/workflow'
 
+const VALID_PAGES: PageId[] = [
+  'home',
+  'analyze',
+  'agents',
+  'agent-receiving',
+  'agent-pack',
+  'agent-returns',
+  'agent-recovery',
+]
+
+const getInitialPage = (): PageId => {
+  const hash = window.location.hash.replace(/^#\/?/, '').trim()
+  if (VALID_PAGES.includes(hash as PageId)) return hash as PageId
+  const path = window.location.pathname.replace(/^\//, '').trim()
+  if (VALID_PAGES.includes(path as PageId)) return path as PageId
+  return 'home'
+}
+
 export const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<PageId>('home')
+  const [currentPage, setCurrentPage] = useState<PageId>(getInitialPage)
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowState | null>(null)
+
+  React.useEffect(() => {
+    const handleHashChange = () => {
+      const page = getInitialPage()
+      setCurrentPage(page)
+    }
+    window.addEventListener('hashchange', handleHashChange)
+    window.addEventListener('popstate', handleHashChange)
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange)
+      window.removeEventListener('popstate', handleHashChange)
+    }
+  }, [])
 
   React.useEffect(() => {
     const handleVisibility = () => {
@@ -27,6 +58,11 @@ export const App: React.FC = () => {
 
   const handleNavigate = (page: PageId) => {
     setCurrentPage(page)
+    if (page === 'home') {
+      window.history.pushState(null, '', window.location.pathname)
+    } else {
+      window.location.hash = `#/${page}`
+    }
     window.scrollTo({
       top: 0,
       behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
@@ -93,7 +129,7 @@ export const App: React.FC = () => {
 
         {currentPage === 'analyze' && (
           <div className="flex-1 px-4 sm:px-6 lg:px-8 py-6">
-            <AnalyzeItem />
+            <AnalyzeItem onNavigateToAgents={() => handleNavigate('agents')} />
           </div>
         )}
 

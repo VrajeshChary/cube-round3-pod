@@ -160,7 +160,7 @@ def handle(request: dict) -> dict:
 
     try:
         lines = sample_data.fee_lines(subject_id, org_id)
-        if not lines:
+        if not lines and not sample_data.has("receiving", subject_id, org_id):
             # Dynamic fee lines for unseen units based on upstream pipeline evidence
             ret = previous(request, "returns")
             rcv = previous(request, "receiving")

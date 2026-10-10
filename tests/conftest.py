@@ -20,6 +20,15 @@ def inproc_by_default(monkeypatch):
     monkeypatch.setenv("ORCH_MODE", "inproc")
 
 
+@pytest.fixture(autouse=True)
+def offline_by_default(monkeypatch):
+    """Ensure tests run offline by default without making live paid API calls."""
+    monkeypatch.setenv("GEMINI_OFFLINE", "1")
+    for k in ("OPENROUTER_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setattr("agents.pack.gemini.client", None, raising=False)
+
+
 def applies(stage: str, case: dict) -> bool:
     return {"receiving": True, "recovery": True, "prep": case["route"] == "fba",
             "pack": case["route"] == "mfn", "returns": case["returned"]}[stage]
