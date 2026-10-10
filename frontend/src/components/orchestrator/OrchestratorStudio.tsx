@@ -4,12 +4,10 @@ import {
   Play,
   RotateCcw,
   CheckCircle2,
+  AlertCircle,
   XCircle,
   AlertTriangle,
-  Clock,
-  Shield,
   Layers,
-  FileText,
   Copy,
   Check,
   ChevronDown,
@@ -17,21 +15,15 @@ import {
   Download,
   BarChart3,
   Loader2,
-  Terminal,
   Cpu,
-  ArrowRight,
-  Boxes,
-  Package,
   Sparkles,
-  Info,
   Upload,
   Camera,
   Trash2,
-  Eye,
   X,
   ZoomIn
 } from 'lucide-react'
-import { ALL_UNIT_CASES, type UnitCase } from '@/data/allCases'
+import { ALL_UNIT_CASES } from '@/data/allCases'
 import { api, dataUrlToFile } from '@/services/api'
 import { WorkflowAnalyticsDashboard } from '@/components/workflow/WorkflowAnalyticsDashboard'
 import type { WorkflowState, AgentVerdict } from '@/types/workflow'
@@ -117,6 +109,8 @@ export const OrchestratorStudio: React.FC<OrchestratorStudioProps> = ({
   const [overrideActor, setOverrideActor] = useState<string>('Lead Auditor (pod-15)')
   const [overrideReason, setOverrideReason] = useState<string>('Manual visual inspection confirmed salvage recovery viability.')
   const [overrideSuccess, setOverrideSuccess] = useState<string | null>(null)
+  const [overrideError, setOverrideError] = useState<string | null>(null)
+  const [executionError, setExecutionError] = useState<string | null>(null)
 
   // Current selected case details
   const currentCase = useMemo(() => {
@@ -176,263 +170,18 @@ export const OrchestratorStudio: React.FC<OrchestratorStudioProps> = ({
     setImages(SAMPLE_CAPTURES)
   }
 
-  // Generate synthetic workflow state matching the Cube Specialist Pod flow
-  const generateSyntheticWorkflow = (caseData: UnitCase, route: string, returned: boolean): { wf: WorkflowState; ev: Record<string, any> } => {
-    const wfId = `wf-spec-${caseData.unit_id.toLowerCase()}-${Date.now().toString(36)}`
-    const isMfn = route === 'mfn'
-    const now = new Date().toISOString()
-
-    const hasCustomerDamage = images.some((img) => img.stageTag === 'returns' && img.previewVerdict === 'FAIL') || caseData.has_fees
-
-    const rcvRecordId = `RCV-${caseData.unit_id}`
-    const pckRecordId = `PCK-${caseData.unit_id}`
-    const rtnRecordId = `RTN-${caseData.unit_id}`
-    const rcyRecordId = `RCY-${caseData.unit_id}`
-
-    const stageResults: any[] = [
-      {
-        stage: 'receiving',
-        agent_id: 'receiving-manager-v2',
-        state: 'completed',
-        skipped_reason: null,
-        record_id: rcvRecordId,
-        evidence_status: 'completed',
-        verdict: 'PASS',
-        outcome: 'inbound_verified_po_matched',
-        needs_human: false,
-        duration_ms: 120,
-        runs: 1,
-        attempts: 1,
-        started_at: now,
-        finished_at: now,
-        error: null,
-      },
-      {
-        stage: 'pack',
-        agent_id: isMfn ? 'pack-manager-v1' : null,
-        state: isMfn ? 'completed' : 'skipped',
-        skipped_reason: isMfn ? null : 'route=fba (FBA units packed at fulfillment center)',
-        record_id: isMfn ? pckRecordId : null,
-        evidence_status: isMfn ? 'completed' : null,
-        verdict: isMfn ? 'PASS' : null,
-        outcome: isMfn ? 'pack_verified_cushioning_compliant' : null,
-        needs_human: false,
-        duration_ms: isMfn ? 180 : 0,
-        runs: isMfn ? 1 : 0,
-        attempts: isMfn ? 1 : 0,
-        started_at: isMfn ? now : null,
-        finished_at: isMfn ? now : null,
-        error: null,
-      },
-      {
-        stage: 'returns',
-        agent_id: returned ? 'returns-multimodal-v3' : null,
-        state: returned ? 'completed' : 'skipped',
-        skipped_reason: returned ? null : 'returned=false (Standard order, no return event)',
-        record_id: returned ? rtnRecordId : null,
-        evidence_status: returned ? 'completed' : null,
-        verdict: returned ? (hasCustomerDamage ? 'FAIL' : 'PASS') : null,
-        outcome: returned
-          ? (hasCustomerDamage ? 'item_damaged_customer_fault_grade_c' : 'item_intact_resalable')
-          : null,
-        needs_human: returned && hasCustomerDamage,
-        duration_ms: returned ? 410 : 0,
-        runs: returned ? 1 : 0,
-        attempts: returned ? 1 : 0,
-        started_at: returned ? now : null,
-        finished_at: returned ? now : null,
-        error: null,
-      },
-      {
-        stage: 'recovery',
-        agent_id: 'sydon-recovery-v2',
-        state: 'completed',
-        skipped_reason: null,
-        record_id: rcyRecordId,
-        evidence_status: 'completed',
-        verdict: hasCustomerDamage ? 'FAIL' : 'PASS',
-        outcome: returned
-          ? (hasCustomerDamage ? 'salvage_disposition_claim_eligible' : 'full_inventory_restock')
-          : 'full_inventory_restock',
-        needs_human: false,
-        duration_ms: 145,
-        runs: 1,
-        attempts: 1,
-        started_at: now,
-        finished_at: now,
-        error: null,
-      },
-    ]
-
-    const finalOutcomeVerdict: AgentVerdict = hasCustomerDamage ? 'FAIL' : 'PASS'
-    const finalOutcomeValue = returned
-      ? (hasCustomerDamage ? 'CLAIM_RECOMMENDED' : 'CLEAN')
-      : 'CLEAN'
-
-    const synthWf: WorkflowState = {
-      schema_version: '1.0.0',
-      workflow_id: wfId,
-      flow_id: 'specialist-no-prep-v1',
-      org_id: caseData.org_id,
-      subject_id: caseData.unit_id,
-      context: {
-        route,
-        returned,
-        has_fees: caseData.has_fees,
-        fee_types: caseData.fee_types,
-        captures_count: images.length,
-      },
-      status: 'COMPLETED',
-      status_reason: 'All active stages evaluated according to specialist flow rules',
-      current_stage: null,
-      previous_stage: 'recovery',
-      stage_results: stageResults,
-      evidence_references: stageResults.filter((s) => s.record_id).map((s) => s.record_id),
-      timestamps: {
-        created_at: now,
-        updated_at: now,
-        completed_at: now,
-      },
-      errors: [],
-      overrides: [],
-      halted: null,
-      final_outcome: {
-        workflow_id: wfId,
-        outcome: finalOutcomeValue,
-        verdict: finalOutcomeVerdict,
-        reason: returned
-          ? (hasCustomerDamage
-              ? `Visual inspection confirmed physical defect from ${images.length} photo capture(s). Salvage disposition approved; $34.50 claim filed.`
-              : 'Return passed visual inspection. Item intact, complete parts. Full restock authorized.')
-          : 'Inbound units successfully verified and cleared for warehouse intake.',
-        needs_human: false,
-        provisional: false,
-        claimable_usd: hasCustomerDamage ? 34.50 : 0.0,
-        contributing_records: stageResults.filter((s) => s.record_id).map((s) => s.record_id),
-        effective_verdicts: {
-          receiving: 'PASS',
-          ...(isMfn ? { pack: 'PASS' } : {}),
-          ...(returned ? { returns: hasCustomerDamage ? 'FAIL' : 'PASS' } : {}),
-          recovery: hasCustomerDamage ? 'FAIL' : 'PASS',
-        },
-        decided_by: 'orchestrator-rollup-v1',
-        decided_at: now,
-      },
-      transitions: [
-        { at: now, event: 'workflow_created', detail: `Workflow initialized with ${images.length} photo capture(s)` },
-        { at: now, event: 'stage_started', stage: 'receiving', detail: 'Executing Receiving Manager' },
-        { at: now, event: 'stage_completed', stage: 'receiving', detail: 'Receiving PASS (PO & carton intact)' },
-        ...(isMfn
-          ? [
-              { at: now, event: 'stage_started', stage: 'pack', detail: 'Executing Pack Manager' },
-              { at: now, event: 'stage_completed', stage: 'pack', detail: 'Pack PASS (cushioning verified)' },
-            ]
-          : [{ at: now, event: 'stage_skipped', stage: 'pack', detail: 'Skipped: FBA route' }]),
-        ...(returned
-          ? [
-              { at: now, event: 'stage_started', stage: 'returns', detail: 'Executing Returns Manager' },
-              { at: now, event: 'stage_completed', stage: 'returns', detail: `Returns complete: ${hasCustomerDamage ? 'FAIL (Damage detected)' : 'PASS (Clean)'}` },
-            ]
-          : [{ at: now, event: 'stage_skipped', stage: 'returns', detail: 'Skipped: Not returned' }]),
-        { at: now, event: 'stage_started', stage: 'recovery', detail: 'Executing Recovery Manager' },
-        { at: now, event: 'stage_completed', stage: 'recovery', detail: `Recovery complete: ${hasCustomerDamage ? 'FAIL (Erroneous charge contradicted -> Claim filed)' : 'PASS (Clean)'}` },
-        { at: now, event: 'outcome_derived', detail: `Final Rollup: ${finalOutcomeValue}` },
-      ],
-    }
-
-    const synthEv: Record<string, any> = {
-      [rcvRecordId]: {
-        record_id: rcvRecordId,
-        stage: 'receiving',
-        agent_id: 'receiving-manager-v2',
-        checks: [
-          { check_key: 'identity_match', verdict: 'PASS', confidence: 0.98, detail: 'SKU and barcode verified against PO manifest.' },
-          { check_key: 'carton_damage', verdict: 'PASS', confidence: 0.95, detail: 'Visual carton inspection clean; 0 crushing, 0 water damage.' },
-          { check_key: 'unit_damage', verdict: 'PASS', confidence: 0.96, detail: 'Inbound physical units verified intact.' },
-          { check_key: 'quantity_verified', verdict: 'PASS', confidence: 1.0, detail: 'Count match: 100 units expected, 100 received (shortfall: 0).' },
-        ],
-      },
-      ...(isMfn
-        ? {
-            [pckRecordId]: {
-              record_id: pckRecordId,
-              stage: 'pack',
-              agent_id: 'pack-manager-v1',
-              checks: [
-                { check_key: 'items_present', verdict: 'PASS', confidence: 0.97, detail: 'All manifest items present in packing carton.' },
-                { check_key: 'quantities_correct', verdict: 'PASS', confidence: 0.99, detail: 'Verified item counts match customer order.' },
-                { check_key: 'cushioning_compliant', verdict: 'PASS', confidence: 0.94, detail: 'Bubble wrap void-fill ratio 85% compliant.' },
-              ],
-            },
-          }
-        : {}),
-      ...(returned
-        ? {
-            [rtnRecordId]: {
-              record_id: rtnRecordId,
-              stage: 'returns',
-              agent_id: 'returns-multimodal-v3',
-              checks: [
-                {
-                  check_key: 'condition_grade',
-                  verdict: hasCustomerDamage ? 'FAIL' : 'PASS',
-                  confidence: 0.92,
-                  detail: hasCustomerDamage
-                    ? 'Visual analysis detected chassis scratch & signs of heavy customer usage (Grade C).'
-                    : 'Item condition pristine; no scratches or signs of wear (Grade A).',
-                },
-                {
-                  check_key: 'bom_completeness',
-                  verdict: hasCustomerDamage ? 'FAIL' : 'PASS',
-                  confidence: 0.89,
-                  detail: hasCustomerDamage
-                    ? 'Missing secondary accessories (USB-C cable omitted by customer).'
-                    : 'All original accessories and documentation intact.',
-                },
-                { check_key: 'return_reason_verified', verdict: 'PASS', confidence: 0.95, detail: 'Customer return reason verified against return authorization.' },
-              ],
-            },
-          }
-        : {}),
-      [rcyRecordId]: {
-        record_id: rcyRecordId,
-        stage: 'recovery',
-        agent_id: 'sydon-recovery-v2',
-        checks: [
-          {
-            check_key: 'charge_reconciliation',
-            verdict: hasCustomerDamage ? 'FAIL' : 'PASS',
-            confidence: 0.96,
-            detail: hasCustomerDamage
-              ? 'Upstream evidence proves customer packaging damage. Contradicts Amazon return fee charge -> $34.50 reimbursement claim filed.'
-              : 'Zero disputed charges. Standard inventory fee supported.',
-          },
-          {
-            check_key: 'disposition_routing',
-            verdict: 'PASS',
-            confidence: 0.95,
-            detail: hasCustomerDamage
-              ? 'Salvage disposition approved. Item routed to refurbishment channel.'
-              : 'Direct restock approved. Item routed back to available inventory.',
-          },
-        ],
-      },
-    }
-
-    return { wf: synthWf, ev: synthEv }
-  }
-
-  // Handle running the orchestrator with 10-second multi-agent pipeline simulation
+  // Handle running the orchestrator with live backend execution
   const handleRunOrchestration = async () => {
     setIsExecuting(true)
     setHasExecuted(false)
-    setExecutionProgress(0)
+    setExecutionProgress(10)
     setExecutionStageIndex(0)
     setExecutionElapsedSeconds(0)
     setExecutionNotice(null)
+    setExecutionError(null)
     setOverrideSuccess(null)
+    setOverrideError(null)
 
-    const TOTAL_DURATION_MS = 10000 // Exact 10 seconds
     const startTime = Date.now()
 
     // 1. Gather all files and stage tags
@@ -453,68 +202,62 @@ export const OrchestratorStudio: React.FC<OrchestratorStudioProps> = ({
             fileList.push(new File([blob], img.name, { type: blob.type || 'image/png' }))
           }
         } catch {
-          // fallback if mock string
+          // non-blocking
         }
       }
     }
 
-    // 2. Launch backend API request in parallel
-    const apiCallPromise = api.inspectWorkflowWithImages({
-      files: fileList,
-      unit_id: currentCase.unit_id,
-      org_id: currentCase.org_id,
-      route: effectiveRoute === 'auto' ? undefined : effectiveRoute,
-      returned: effectiveReturned,
-      stage_tags: stageTagsMap,
-    }).catch((err) => {
-      console.warn('Backend inspect call fallback:', err)
-      const { wf, ev } = generateSyntheticWorkflow(currentCase, effectiveRoute, effectiveReturned)
-      return { workflow: wf, evidence: ev }
-    })
-
-    // 3. Animate progress bar over 10 seconds
+    // 2. Animate live elapsed timer during real execution
     const timerInterval = setInterval(() => {
       const elapsed = Date.now() - startTime
-      const progress = Math.min(100, Math.round((elapsed / TOTAL_DURATION_MS) * 100))
-      const seconds = Math.min(10, Math.round((elapsed / 1000) * 10) / 10)
-
-      setExecutionProgress(progress)
+      const seconds = Math.round(elapsed / 100) / 10
       setExecutionElapsedSeconds(seconds)
 
-      if (elapsed < 2500) {
-        setExecutionStageIndex(0) // Stage 1: Receiving
+      if (elapsed < 1500) {
+        setExecutionStageIndex(0)
+        setExecutionProgress(Math.min(35, 10 + Math.floor(elapsed / 50)))
+      } else if (elapsed < 3000) {
+        setExecutionStageIndex(1)
+        setExecutionProgress(Math.min(60, 35 + Math.floor((elapsed - 1500) / 50)))
       } else if (elapsed < 5000) {
-        setExecutionStageIndex(1) // Stage 2: Pack
-      } else if (elapsed < 7500) {
-        setExecutionStageIndex(2) // Stage 3: Returns
+        setExecutionStageIndex(2)
+        setExecutionProgress(Math.min(85, 60 + Math.floor((elapsed - 3000) / 60)))
       } else {
-        setExecutionStageIndex(3) // Stage 4: Recovery
+        setExecutionStageIndex(3)
+        setExecutionProgress(Math.min(95, 85 + Math.floor((elapsed - 5000) / 100)))
       }
     }, 100)
 
     try {
-      // 4. Wait for both the API call and the 10-second timer to complete!
-      const [bundle] = await Promise.all([
-        apiCallPromise,
-        new Promise((resolve) => setTimeout(resolve, TOTAL_DURATION_MS)),
-      ])
+      const bundle = await api.inspectWorkflowWithImages({
+        files: fileList,
+        unit_id: currentCase.unit_id,
+        org_id: currentCase.org_id,
+        route: effectiveRoute === 'auto' ? undefined : effectiveRoute,
+        returned: effectiveReturned,
+        stage_tags: stageTagsMap,
+      })
 
       clearInterval(timerInterval)
       setExecutionProgress(100)
-      setExecutionElapsedSeconds(10.0)
+      const finalElapsed = Math.round((Date.now() - startTime) / 100) / 10
+      setExecutionElapsedSeconds(finalElapsed)
 
       setWorkflowState(bundle.workflow)
       setEvidenceBundle(bundle.evidence)
-      setExecutionNotice(`Orchestrator successfully evaluated ${images.length} capture(s) through all active agents: Receiving ➔ Pack ➔ Returns ➔ Recovery.`)
-    } catch {
-      clearInterval(timerInterval)
-      const { wf, ev } = generateSyntheticWorkflow(currentCase, effectiveRoute, effectiveReturned)
-      setWorkflowState(wf)
-      setEvidenceBundle(ev)
-      setExecutionNotice(`Analyzed ${images.length} physical capture(s) through all agents (Receiving, Pack, Returns, Recovery) with multimodal vision rules.`)
-    } finally {
-      setIsExecuting(false)
+      setExecutionNotice(
+        `Orchestrator evaluated ${fileList.length} physical capture(s) for unit ${bundle.workflow.subject_id} (${bundle.workflow.status}). Final outcome: ${bundle.workflow.final_outcome?.outcome || 'CLEAN'}.`
+      )
       setHasExecuted(true)
+    } catch (err: any) {
+      clearInterval(timerInterval)
+      const msg = err?.detail || err?.message || 'Workflow execution failed'
+      setExecutionError(msg)
+      setWorkflowState(null)
+      setEvidenceBundle(null)
+    } finally {
+      clearInterval(timerInterval)
+      setIsExecuting(false)
     }
   }
 
@@ -523,37 +266,36 @@ export const OrchestratorStudio: React.FC<OrchestratorStudioProps> = ({
     setWorkflowState(null)
     setEvidenceBundle(null)
     setExecutionNotice(null)
+    setExecutionError(null)
+    setOverrideSuccess(null)
+    setOverrideError(null)
     setExpandedStage(null)
   }
 
-  const handleApplyOverride = (e: React.FormEvent) => {
+  const handleApplyOverride = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!workflowState) return
 
-    const targetRecord = workflowState.stage_results.find((s) => s.stage === overrideStage)?.record_id || `rec-${overrideStage}-${workflowState.subject_id}`
+    const targetRecord = workflowState.stage_results.find((s) => s.stage === overrideStage)?.record_id
+    if (!targetRecord) {
+      setOverrideError(`Stage ${overrideStage.toUpperCase()} has not produced an evidence record to override.`)
+      return
+    }
 
-    setWorkflowState((prev) => {
-      if (!prev) return null
-      return {
-        ...prev,
-        overrides: [
-          ...prev.overrides,
-          {
-            override_id: `ovr-${Date.now().toString(36)}`,
-            supersedes: { record_id: targetRecord, override_id: null },
-            target: targetRecord,
-            actor: overrideActor,
-            at: new Date().toISOString(),
-            reason: overrideReason,
-            original_verdict: 'FAIL',
-            previous_verdict: 'FAIL',
-            new_verdict: overrideVerdict,
-            new_outcome: 'AUDITOR_APPROVED',
-          },
-        ],
-      }
-    })
-    setOverrideSuccess(`Override applied: ${overrideStage.toUpperCase()} updated to ${overrideVerdict}`)
+    try {
+      const updatedWf = await api.submitOverride(workflowState.workflow_id, {
+        record_id: targetRecord,
+        new_verdict: overrideVerdict,
+        actor: overrideActor,
+        reason: overrideReason,
+        new_outcome: overrideVerdict === 'PASS' ? 'AUDITOR_APPROVED' : 'AUDITOR_REJECTED',
+      })
+      setWorkflowState(updatedWf)
+      setOverrideSuccess(`Override applied to record ${targetRecord}: ${overrideStage.toUpperCase()} verdict set to ${overrideVerdict}`)
+      setOverrideError(null)
+    } catch (err: any) {
+      setOverrideError(err?.detail || err?.message || 'Failed to submit override')
+    }
   }
 
   const handleCopyWfId = () => {
@@ -1053,7 +795,7 @@ export const OrchestratorStudio: React.FC<OrchestratorStudioProps> = ({
               <div className="text-right">
                 <span className="block font-mono text-[10px] text-stone-500 uppercase tracking-widest">Elapsed Time</span>
                 <span className="font-mono text-xl font-bold text-teal-400">
-                  {executionElapsedSeconds.toFixed(1)}s <span className="text-xs text-stone-500">/ 10.0s</span>
+                  {executionElapsedSeconds.toFixed(1)}s
                 </span>
               </div>
               <div className="h-8 w-px bg-stone-800" />
@@ -1198,7 +940,7 @@ export const OrchestratorStudio: React.FC<OrchestratorStudioProps> = ({
                 sydon-recovery-v2
               </p>
               <p className="text-[11px] text-stone-400 leading-snug">
-                Fee reconciliation, disposition route, $34.50 reimbursement.
+                Fee reconciliation, disposition route, and claims determination.
               </p>
             </div>
           </div>
@@ -1259,7 +1001,7 @@ export const OrchestratorStudio: React.FC<OrchestratorStudioProps> = ({
               )}
               {executionElapsedSeconds >= 8.8 && (
                 <div className="text-cyan-300">
-                  <span className="text-stone-600">[00:08.8]</span> [RECOVERY] Fee reconciliation: {images.some(i => i.stageTag === 'returns' && i.previewVerdict === 'FAIL') || currentCase.has_fees ? 'Erroneous fee charge contradicted by visual evidence -> Formulating $34.50 claim' : 'Zero disputed charges -> Clear disposition restock approved'}
+                  <span className="text-stone-600">[00:08.8]</span> [RECOVERY] Reconciling Amazon fee lines against verified upstream warehouse evidence...
                 </div>
               )}
               {executionElapsedSeconds >= 9.6 && (
@@ -1275,6 +1017,16 @@ export const OrchestratorStudio: React.FC<OrchestratorStudioProps> = ({
             </div>
           </div>
         </section>
+      )}
+
+      {executionError && (
+        <div className="flex items-center gap-3 rounded-2xl border border-rose-300 bg-rose-50 p-5 shadow-sm font-mono text-xs text-rose-900">
+          <AlertCircle className="h-5 w-5 text-rose-700 shrink-0" />
+          <div className="space-y-0.5">
+            <strong className="block font-bold text-rose-950 uppercase">Workflow Execution Failed</strong>
+            <p className="text-xs text-rose-800 font-sans">{executionError}</p>
+          </div>
+        </div>
       )}
 
       {/* ------------------------------------------------------------- */}
@@ -1667,6 +1419,13 @@ export const OrchestratorStudio: React.FC<OrchestratorStudioProps> = ({
                   <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-mono text-emerald-800">
                     <CheckCircle2 className="h-4 w-4" />
                     <span>{overrideSuccess}</span>
+                  </div>
+                )}
+
+                {overrideError && (
+                  <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-mono text-rose-800">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>{overrideError}</span>
                   </div>
                 )}
 

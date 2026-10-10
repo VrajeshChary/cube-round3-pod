@@ -246,7 +246,9 @@ def handle(request: dict) -> dict:
         r = sample_data.row("receiving", subject_id, org_id)
     except LookupError:
         ctx = request.get("context", {})
-        has_custom_context = bool(ctx.get("sku") or ctx.get("title") or ctx.get("po_line"))
+        case_ctx = ctx.get("case", {}) if isinstance(ctx.get("case"), dict) else {}
+        merged_ctx = {**case_ctx, **ctx}
+        has_custom_context = bool(merged_ctx.get("sku") or merged_ctx.get("title") or merged_ctx.get("po_line") or merged_ctx.get("product_title"))
         has_inputs = bool(request.get("inputs"))
         if not has_custom_context and not has_inputs:
             raise LookupError(f"no receiving record for {subject_id} in {org_id}")
@@ -257,9 +259,9 @@ def handle(request: dict) -> dict:
             "org_id": org_id,
             "po_number": f"PO-{subject_id}",
             "po_line": "1",
-            "sku": ctx.get("sku") or "SKU-BOTTLE-750",
-            "asin": ctx.get("asin") or "B08N5WRWNW",
-            "product_title": ctx.get("title") or "Stainless Steel Vacuum Bottle 750ml",
+            "sku": merged_ctx.get("sku") or "SKU-BOTTLE-750",
+            "asin": merged_ctx.get("asin") or "B08N5WRWNW",
+            "product_title": merged_ctx.get("title") or merged_ctx.get("product_title") or "Stainless Steel Vacuum Bottle 750ml",
             "cartons_ordered": "1",
             "cartons_received": "1",
             "qty_ordered": "1",

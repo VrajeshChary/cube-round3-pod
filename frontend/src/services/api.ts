@@ -6,9 +6,11 @@ import type {
   WorkflowState,
 } from '@/types/workflow'
 
-// Configurable API base URL, defaulting to Vite dev proxy /api or directly http://localhost:8100
+// Configurable API base URL, defaulting to Vite dev proxy in DEV or Railway in PROD
 const RAW_BASE_URL = import.meta.env.VITE_API_BASE_URL
-export const API_BASE_URL = RAW_BASE_URL ? RAW_BASE_URL.replace(/\/+$/, '') : '/api'
+export const API_BASE_URL = RAW_BASE_URL
+  ? RAW_BASE_URL.replace(/\/+$/, '')
+  : (import.meta.env.PROD ? 'https://cube-round3-pod-production.up.railway.app' : '/api')
 
 export function resolveApiUrl(pathOrUrl: string): string {
   if (!pathOrUrl) return ''

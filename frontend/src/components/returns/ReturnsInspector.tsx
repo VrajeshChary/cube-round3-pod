@@ -496,7 +496,7 @@ export const ReturnsInspector: React.FC<ReturnsInspectorProps> = ({
           title: activeTitle,
           category: activeCategory || record?.category,
           expected_parts: activeExpectedParts.length > 0 ? activeExpectedParts : record?.expected_components,
-          unit_id: record?.unit_id || 'UNIT-0014',
+          unit_id: record?.unit_id,
           order_id: record?.order_id,
           org_id: record?.org_id,
         },

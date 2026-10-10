@@ -159,36 +159,14 @@ def handle(request: dict) -> dict:
             raise LookupError(f"unknown subject {subject_id} in {org_id}")
 
     try:
-        lines = sample_data.fee_lines(subject_id, org_id)
-        if not lines and not sample_data.has("receiving", subject_id, org_id):
-            # Dynamic fee lines for unseen units based on upstream pipeline evidence
-            ret = previous(request, "returns")
-            rcv = previous(request, "receiving")
-            if ret and ret.get("status") == "completed":
-                ret_verdict = ret.get("decision", {}).get("verdict")
-                if ret_verdict == "FAIL":
-                    lines = [{
-                        "line_id": f"FEE-{subject_id}-RET01",
-                        "charge_type": "refund_issued_item_not_returned",
-                        "amount_usd": 34.50,
-                        "posted_date": utcnow()[:10],
-                    }]
-                else:
-                    lines = [{
-                        "line_id": f"FEE-{subject_id}-CLN01",
-                        "charge_type": "damaged_in_warehouse",
-                        "amount_usd": 0.00,
-                        "posted_date": utcnow()[:10],
-                    }]
-            elif rcv and rcv.get("status") == "completed":
-                lines = [{
-                    "line_id": f"FEE-{subject_id}-RCV01",
-                    "charge_type": "lost_inbound",
-                    "amount_usd": 22.00,
-                    "posted_date": utcnow()[:10],
-                }]
-            else:
-                lines = []
+        ctx = request.get("context", {})
+        case_ctx = ctx.get("case", {}) if isinstance(ctx.get("case"), dict) else {}
+        custom_fees = case_ctx.get("fee_lines") or ctx.get("fee_lines")
+        if custom_fees is not None:
+            lines = list(custom_fees)
+        else:
+            lines = sample_data.fee_lines(subject_id, org_id)
+
         checks, charges, claimable = [], [], 0.0
 
         for line in lines:

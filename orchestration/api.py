@@ -12,6 +12,7 @@ No authentication is included. Add it before you deploy anywhere public.
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import os
 import shutil
@@ -145,8 +146,10 @@ async def inspect_workflow_with_images(
     stage_tags: str | None = Form(None),
 ) -> dict:
     """Accept multimodal image captures, route to respective agent input folders, and run full workflow."""
+    if not unit_id or not unit_id.strip():
+        raise HTTPException(400, "unit_id is required")
     input_root = Path(os.environ.get("INPUT_DIR", ROOT / "data" / "input"))
-    target_unit_id = (unit_id or "UNIT-0014").strip()
+    target_unit_id = unit_id.strip()
     target_org_id = (org_id or "org_demo_alpha").strip()
     target_route = route.strip() if route and route != "auto" else sample_data.route(target_unit_id, target_org_id)
 
@@ -418,8 +421,8 @@ async def inspect_return(
             parts_list = [p.strip() for p in expected_parts.split(";") if p.strip()]
 
     # Resolve unit and tenant context
-    is_demo_fixture = unit_id is None or unit_id == "UNIT-0014"
-    target_unit_id = "UNIT-0014" if is_demo_fixture else unit_id
+    target_unit_id = unit_id.strip() if unit_id and unit_id.strip() else f"UNIT-RET-{hashlib.sha256((target_sku or 'CUSTOM').encode()).hexdigest()[:6].upper()}"
+    is_demo_fixture = target_unit_id == "UNIT-0014"
     target_org_id = org_id or "org_demo_alpha"
     target_order_id = order_id or f"ORD-DEMO-{target_unit_id}"
 
