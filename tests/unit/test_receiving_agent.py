@@ -92,8 +92,7 @@ def test_receiving_offline_mode_does_not_call_external_api(monkeypatch):
     assert out["evidence"]["model"]["cost_usd"] == 0.0
 
 
-def test_receiving_malformed_input_handles_safely():
-    # Minimal empty request
+def test_receiving_unknown_unit_without_context_raises_lookup_error():
     req = {
         "schema_version": "1.0",
         "request_id": "WF-test:receiving",
@@ -108,7 +107,25 @@ def test_receiving_malformed_input_handles_safely():
         "previous_evidence": [],
         "context": {},
     }
-    # Unseen unit should handle gracefully without crashing
+    with pytest.raises(LookupError, match="no receiving record"):
+        handle(req)
+
+
+def test_receiving_custom_unseen_unit_with_context_evaluates_cleanly():
+    req = {
+        "schema_version": "1.0",
+        "request_id": "WF-custom:receiving",
+        "workflow_id": "WF-custom",
+        "stage": "receiving",
+        "subject": {
+            "org_id": "org_demo_alpha",
+            "subject_id": "UNIT-CUSTOM-001",
+            "route": "fba",
+        },
+        "inputs": [],
+        "previous_evidence": [],
+        "context": {"sku": "SKU-CUSTOM-01", "title": "Custom Product"},
+    }
     out = handle(req)
     assert out["stage"] == "receiving"
     assert out["verdict"] in ("PASS", "FAIL", "UNCERTAIN")

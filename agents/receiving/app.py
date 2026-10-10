@@ -245,15 +245,21 @@ def handle(request: dict) -> dict:
     try:
         r = sample_data.row("receiving", subject_id, org_id)
     except LookupError:
-        # Support unseen units under the requested tenant
+        ctx = request.get("context", {})
+        has_custom_context = bool(ctx.get("sku") or ctx.get("title") or ctx.get("po_line"))
+        has_inputs = bool(request.get("inputs"))
+        if not has_custom_context and not has_inputs:
+            raise LookupError(f"no receiving record for {subject_id} in {org_id}")
+
+        # Support custom unseen units provided with images or context under the requested tenant
         r = {
             "unit_id": subject_id,
             "org_id": org_id,
             "po_number": f"PO-{subject_id}",
             "po_line": "1",
-            "sku": request.get("context", {}).get("sku") or "SKU-BOTTLE-750",
-            "asin": request.get("context", {}).get("asin") or "B08N5WRWNW",
-            "product_title": request.get("context", {}).get("title") or "Stainless Steel Vacuum Bottle 750ml",
+            "sku": ctx.get("sku") or "SKU-BOTTLE-750",
+            "asin": ctx.get("asin") or "B08N5WRWNW",
+            "product_title": ctx.get("title") or "Stainless Steel Vacuum Bottle 750ml",
             "cartons_ordered": "1",
             "cartons_received": "1",
             "qty_ordered": "1",
