@@ -19,6 +19,6 @@ COPY . .
 EXPOSE 8100
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:${PORT}/health || exit 1
+    CMD curl -f http://127.0.0.1:${PORT:-8100}/health || exit 1
 
-CMD ["sh", "-c", "python -m uvicorn orchestration.api:app --host 0.0.0.0 --port ${PORT:-8100}"]
+CMD ["python", "-m", "orchestration.api"]

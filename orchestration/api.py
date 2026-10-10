@@ -51,18 +51,21 @@ app = FastAPI(title="CUBE Round 3 orchestrator")
 # Configure CORS for local development and deployed frontend origins (e.g. Vercel)
 raw_cors = os.environ.get("CORS_ORIGINS", "")
 cors_origins = [o.strip() for o in raw_cors.split(",") if o.strip()]
-if not cors_origins:
-    cors_origins = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-        "http://localhost:5175",
-        "http://127.0.0.1:5175",
-        "http://localhost:3000",
-        "http://localhost:8100",
-        "http://127.0.0.1:8100",
-    ]
+default_origins = [
+    "https://odysseuslabs.vercel.app",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "http://localhost:5175",
+    "http://127.0.0.1:5175",
+    "http://localhost:3000",
+    "http://localhost:8100",
+    "http://127.0.0.1:8100",
+]
+for d_origin in default_origins:
+    if d_origin not in cors_origins:
+        cors_origins.append(d_origin)
 
 # Allow any local development origin (Vite/React on any port) and Vercel production/preview deployments
 cors_regex = r"^https?:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$|^https:\/\/.*\.vercel\.app$"
@@ -582,8 +585,16 @@ async def inspect_pack(
 
 
 if __name__ == "__main__":
+    import re
     import uvicorn
-    port = int(os.environ.get("PORT", 8100))
+
+    raw_port = os.environ.get("PORT", "8100")
+    try:
+        port = int(raw_port)
+    except (ValueError, TypeError):
+        digits = re.findall(r"\d+", str(raw_port))
+        port = int(digits[-1]) if digits else 8100
     host = os.environ.get("HOST", "0.0.0.0")
+    print(f"Starting CUBE orchestrator API on {host}:{port}")
     uvicorn.run("orchestration.api:app", host=host, port=port)
 
